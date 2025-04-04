@@ -1,0 +1,38 @@
+		}
+		strcpy(sbuff,"continue");
+		write(skfd,sbuff,strlen(sbuff));
+		printf("Enter the expression");
+		bzero(sbuff,128);
+		fgets(sbuff,128,stdin);
+		/*send a message to the echo server*/
+		if((w = write(skfd, sbuff, 128)) < 0)       	
+		{
+			printf("\nCLIENT ERROR: Cannot send message to the echo server.\n");
+			close(skfd);
+			exit(1);
+		}
+		printf("\nCLIENT: Message sent to server.\n");
+
+		/*read back the echoed message from server*/
+		if((r = read(skfd, rbuff, 128)) < 0)
+			printf("\nCLIENT ERROR: Cannot receive mesage from server.\n");
+		else
+		{
+			rbuff[r] = '\0';
+
+			 /*print the received message on console*/
+			printf("\nCLIENT: Message from echo server: %s\n", rbuff);
+
+		}
+		printf("Waiting for server...");
+		bzero(sbuff,128);
+		read(skfd,sbuff,128);
+		if(strcmp(sbuff,"shut")==0) {
+			printf("Server shut down\n");
+			break;
+		}
+		bzero(rbuff,128);
+	}
+	close(skfd);
+	exit(1);
+} /*main ends*/
