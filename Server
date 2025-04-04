@@ -1,0 +1,109 @@
+#include<sys/socket.h>
+#include<sys/types.h>
+#include<netinet/in.h>
+#include<arpa/inet.h>
+#include<string.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+
+struct sockaddr_in serv_addr, cli_addr;
+int listenfd, connfd, r, w, val, cli_addr_len;
+
+unsigned short serv_port = 2500;
+char serv_ip[] = "127.0.0.1";
+char buff[128];
+
+int main()
+{
+    bzero(&serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(serv_port);
+    inet_aton(serv_ip, (&serv_addr.sin_addr));
+
+    printf("\nTCP BINARY CALCULATOR SERVER.\n");
+
+    if((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        perror("socket error");
+        exit(1);
+    }
+
+    if((bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0)
+    {
+        perror("bind error");
+        close(listenfd);
+        exit(1);
+    }
+
+    listen(listenfd, 5);
+
+    cli_addr_len = sizeof(cli_addr);
+    
+    for(;;)
+    {
+        printf("\nSERVER: Listening for clients...\n");
+        if((connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &cli_addr_len)) < 0)
+        {
+            perror("accept error");
+            continue;
+        }
+        printf("\nSERVER: Connection from %s accepted.\n", inet_ntoa(cli_addr.sin_addr));
+
+        int first_operation = 1;
+        // Math handling loop
+        while(1)
+        {
+            r = read(connfd, buff, 128);
+            if(r <= 0)
+            {
+                printf("Client disconnected\n");
+                break;
+            }
+            
+            if(strcmp(buff, "exit") == 0)
+            {
+                printf("Client exited\n");
+                break;
+            }
+
+            // Calculate result using bc command
+            char command[256];
+            char response[128];
+            FILE *fp;
+            
+            snprintf(command, sizeof(command), "echo '%s' | bc", buff);
+            fp = popen(command, "r");
+            if (fp == NULL) {
+                strcpy(response, "Calculation error");
+            } else {
+                if (fgets(response, sizeof(response)-1, fp) == NULL) {
+                    strcpy(response, "Invalid input");
+                }
+                response[strcspn(response, "\n")] = '\0'; // Remove newline
+                pclose(fp);
+            }
+            
+            write(connfd, response, strlen(response)+1);
+            printf("Sent result: %s\n", response);
+
+            // Admin decision after first operation
+            if (first_operation) {
+                first_operation = 0;
+                printf("Kick client? (y/n): ");
+                char choice;
+                scanf(" %c", &choice);
+                getchar(); // Clear input buffer
+
+                if(choice == 'y' || choice == 'Y')
+                {
+                    close(connfd);
+                    break;
+                }
+            }
+        }
+        close(connfd);
+    }
+    close(listenfd);
+    return 0;
+}
